@@ -1,54 +1,63 @@
-const express = require('express');
-const hbs = require('hbs');
+'use strict';
 
-const port = process.env.PORT || 3000;
+/**
+ * Load Twilio configuration from .env config file - the following environment
+ * variables should be set:
+ * process.env.TWILIO_ACCOUNT_SID
+ * process.env.TWILIO_API_KEY
+ * process.env.TWILIO_API_SECRET
+ */
+
+require('dotenv').load();
+
+var http = require('http');
+var AccessToken = require('twilio').jwt.AccessToken;
+var VideoGrant = AccessToken.VideoGrant;
+var express = require('express');
+
+// Create Express webapp.
 var app = express();
 
-hbs.registerPartials(__dirname + '/views/partials')
-app.set('view engine', 'hbs');
+/**
+ * Generate an Access Token for a chat application user provided via the url
+ */
+app.get('/token', function(request, response) {
+  response.header('Access-Control-Allow-Origin', '*');
+  response.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+ 
+  var identity = request.query['identity'];
 
-app.use((req, res, next) => {
-  var now = new Date().toString();
-  var log = `${now}: ${req.method} ${req.url}`;
+  if ( !identity ) {
+    response.send({
+      body: "An identity is needed"
+    })
+  }
 
-  console.log(log);
-  next();
-});
+  // Create an access token which we will sign and return to the client,
+  // containing the grant we just created.
+  var token = new AccessToken(
+    process.env.TWILIO_ACCOUNT_SID,
+    process.env.TWILIO_API_KEY,
+    process.env.TWILIO_API_SECRET
+  );
 
-// app.use((req, res, next) => {
-//   res.render('maintenance.hbs');
-// });
+  // Assign the generated identity to the token.
+  token.identity = identity;
 
-app.use(express.static(__dirname + '/public'));
+  // Grant the access token Twilio Video capabilities.
+  var grant = new VideoGrant();
+  token.addGrant(grant);
 
-hbs.registerHelper('getCurrentYear', () => {
-  return new Date().getFullYear();
-});
-
-hbs.registerHelper('screamIt', (text) => {
-  return text.toUpperCase();
-});
-
-app.get('/', (req, res) => {
-  res.render('home.hbs', {
-    pageTitle: 'Home Page',
-    welcomeMessage: 'Welcome to my website'
+  // Serialize the token to a JWT string and include it in a JSON response.
+  response.send({
+    identity: identity,
+    token: token.toJwt()
   });
 });
 
-app.get('/about', (req, res) => {
-  res.render('about.hbs', {
-    pageTitle: 'About Page'
-  });
-});
-
-// /bad - send back json with errorMessage
-app.get('/bad', (req, res) => {
-  res.send({
-    errorMessage: 'Unable to handle request'
-  });
-});
-
-app.listen(port, () => {
-  console.log(`Server is up on port ${port}`);
+// Create http server and run it.
+var server = http.createServer(app);
+var port = process.env.PORT || 3000;
+server.listen(port, function() {
+  console.log('Express server running on *:' + port);
 });
