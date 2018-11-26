@@ -26,6 +26,7 @@ app.get('/token', function(request, response) {
   response.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
  
   var identity = request.query['identity'];
+  var identity = "finn";
 
   if ( !identity ) {
     response.send({
